@@ -3,6 +3,7 @@ module github.com/jack/some-tui
 go 1.25.5
 
 require (
+	github.com/bmatcuk/doublestar/v4 v4.9.1
 	github.com/charmbracelet/bubbles v0.21.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/glamour v0.10.0
