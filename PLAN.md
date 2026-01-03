@@ -9,7 +9,7 @@ This document outlines the implementation plan for Gemini TUI features and distr
 | 1. File System Tool Use | High | Medium | **DONE** |
 | 2. Streaming Responses | High | Medium | **DONE** |
 | 3. Thinking Mode | Medium | Low | **DONE** |
-| 4. Distribution & Installation | High | Medium | **IN PROGRESS** |
+| 4. Distribution & Installation | High | Medium | **DONE** |
 
 ---
 
@@ -670,12 +670,12 @@ These steps cannot be automated by Claude Code:
 10. ~~Add model selection~~
 11. ~~Add status bar with current settings~~
 
-### Phase 4: Distribution [IN PROGRESS]
-12. Create `Makefile` with cross-compilation targets
-13. Create `install.sh` script
-14. Add version embedding to binary (`--version` flag)
-15. Create initial GitHub release with `gh` CLI
-16. Test installation via curl pipe
+### Phase 4: Distribution [DONE]
+12. ~~Create `Makefile` with cross-compilation targets~~
+13. ~~Create `install.sh` script~~
+14. ~~Add version embedding to binary (`--version` flag)~~
+15. ~~Create initial GitHub release with `gh` CLI~~
+16. ~~Test installation via curl pipe~~
 
 ### Phase 5: Polish (Future)
 17. Add command palette (`:` prefix for commands)
