@@ -5,8 +5,27 @@ This file provides guidance for Claude Code when working with this project.
 ## Key Files to Read
 
 - [README.md](./README.md) - User-facing documentation, installation, and usage
-- [PLAN.md](./PLAN.md) - Implementation history and future roadmap
+- [PLAN.md](./PLAN.md) - **Implementation roadmap and current tasks** - always check for outstanding work
 - [Makefile](./Makefile) - **Always check this first** for available commands
+
+## Implementation Workflow
+
+**IMPORTANT**: When implementing features, follow PLAN.md strictly:
+
+1. **Check PLAN.md first** - Read the "Implementation Order" section to find the current phase and outstanding tasks
+2. **Work through tasks sequentially** - Complete each checklist item in order (e.g., `[ ] 7.1`, `[ ] 7.2`, etc.)
+3. **Mark tasks complete** - After finishing each step, update PLAN.md to check it off: `[ ]` → `[x]`
+4. **Update status when done** - When all tasks in a phase are complete, update the Feature Overview table status to `**DONE**`
+5. **Verify with build** - Run `make build` after each significant change
+
+Example workflow:
+```
+1. Read PLAN.md → Find "Phase 6: Configuration System [IN PROGRESS]"
+2. See first unchecked item: "[ ] 7.1 Add github.com/BurntSushi/toml dependency"
+3. Implement that step
+4. Update PLAN.md: "[ ] 7.1..." → "[x] 7.1..."
+5. Move to next unchecked item
+```
 
 ## Makefile First
 
@@ -122,7 +141,8 @@ The application follows the Elm architecture:
 
 ## When Modifying
 
-- Run `go build` to verify compilation
+- **Follow PLAN.md** - Check off completed tasks as you work (see Implementation Workflow above)
+- Run `make build` to verify compilation
 - Test changes with a real API key
 - Keep UI responsive (use `tea.Cmd` for async)
 - Consider terminal size constraints

@@ -16,6 +16,7 @@ Gemini TUI is a coding assistant that runs in your terminal. It can read, write,
 | 4. Distribution & Installation | High | Medium | **DONE** |
 | 5. File System Write Tools | High | Medium | **DONE** |
 | 6. Gemini 3 Models | Medium | Low | **DONE** |
+| 7. Configuration System | High | Medium | **IN PROGRESS** |
 
 ---
 
@@ -657,6 +658,217 @@ These steps cannot be automated by Claude Code:
 
 ---
 
+## Feature 7: Configuration System [IN PROGRESS]
+
+### Overview
+
+Add persistent configuration using the XDG Base Directory specification with TOML format. Users can configure model choice, thinking mode, and UI preferences that persist across sessions.
+
+### Configuration Location
+
+Following XDG Base Directory spec:
+- **Config file**: `$XDG_CONFIG_HOME/gemini-tui/config.toml` (defaults to `~/.config/gemini-tui/config.toml`)
+- **Fallback**: If `XDG_CONFIG_HOME` is not set, use `~/.config`
+
+### Config File Format (TOML)
+
+```toml
+# Gemini TUI Configuration
+
+# Model to use (gemini-2.0-flash, gemini-2.5-flash, gemini-2.5-pro, gemini-3-flash-preview, gemini-3-pro-preview)
+model = "gemini-2.0-flash"
+
+[thinking]
+# Enable thinking mode for complex reasoning
+enabled = false
+# Show thinking process in UI
+show = true
+```
+
+### Configurable Settings
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `model` | string | `"gemini-2.0-flash"` | Active Gemini model |
+| `thinking.enabled` | bool | `false` | Whether thinking mode is on |
+| `thinking.show` | bool | `true` | Whether to display thinking in UI |
+
+### Implementation Steps
+
+#### 7.1 Add TOML dependency
+
+Add the BurntSushi/toml package to go.mod:
+
+```bash
+go get github.com/BurntSushi/toml
+```
+
+#### 7.2 Create config package
+
+Create `internal/config/config.go`:
+
+```go
+package config
+
+import (
+    "os"
+    "path/filepath"
+
+    "github.com/BurntSushi/toml"
+)
+
+type Config struct {
+    Model    string         `toml:"model"`
+    Thinking ThinkingConfig `toml:"thinking"`
+}
+
+type ThinkingConfig struct {
+    Enabled bool `toml:"enabled"`
+    Show    bool `toml:"show"`
+}
+
+func DefaultConfig() *Config {
+    return &Config{
+        Model: "gemini-2.0-flash",
+        Thinking: ThinkingConfig{
+            Enabled: false,
+            Show:    true,
+        },
+    }
+}
+
+func configDir() string {
+    if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
+        return filepath.Join(xdg, "gemini-tui")
+    }
+    home, _ := os.UserHomeDir()
+    return filepath.Join(home, ".config", "gemini-tui")
+}
+
+func configPath() string {
+    return filepath.Join(configDir(), "config.toml")
+}
+```
+
+#### 7.3 Implement Load function
+
+```go
+func Load() (*Config, error) {
+    cfg := DefaultConfig()
+
+    path := configPath()
+    if _, err := os.Stat(path); os.IsNotExist(err) {
+        return cfg, nil // Return defaults if no config file
+    }
+
+    _, err := toml.DecodeFile(path, cfg)
+    if err != nil {
+        return nil, fmt.Errorf("failed to parse config: %w", err)
+    }
+
+    return cfg, nil
+}
+```
+
+#### 7.4 Implement Save function
+
+```go
+func (c *Config) Save() error {
+    dir := configDir()
+    if err := os.MkdirAll(dir, 0755); err != nil {
+        return fmt.Errorf("failed to create config dir: %w", err)
+    }
+
+    f, err := os.Create(configPath())
+    if err != nil {
+        return fmt.Errorf("failed to create config file: %w", err)
+    }
+    defer f.Close()
+
+    encoder := toml.NewEncoder(f)
+    return encoder.Encode(c)
+}
+```
+
+#### 7.5 Integrate with main.go
+
+Update model struct and initialization:
+
+```go
+type model struct {
+    // ... existing fields ...
+    config *config.Config
+}
+
+func initialModel(client *genai.Client, executor *tools.Executor) model {
+    cfg, err := config.Load()
+    if err != nil {
+        // Log warning, use defaults
+        cfg = config.DefaultConfig()
+    }
+
+    return model{
+        // ... existing initialization ...
+        config:          cfg,
+        currentModel:    cfg.Model,
+        thinkingEnabled: cfg.Thinking.Enabled,
+        showThinking:    cfg.Thinking.Show,
+    }
+}
+```
+
+#### 7.6 Save on toggle
+
+Update keyboard handlers to save config on change:
+
+```go
+case "ctrl+t":
+    m.thinkingEnabled = !m.thinkingEnabled
+    m.config.Thinking.Enabled = m.thinkingEnabled
+    m.config.Save() // Persist change
+    return m, nil
+
+case "ctrl+g":
+    m.currentModel = m.nextModel()
+    m.config.Model = m.currentModel
+    m.config.Save() // Persist change
+    return m, nil
+
+case "ctrl+h":
+    m.showThinking = !m.showThinking
+    m.config.Thinking.Show = m.showThinking
+    m.config.Save() // Persist change
+    return m, nil
+```
+
+### File Structure After Implementation
+
+```
+.
+├── main.go
+├── internal/
+│   ├── config/
+│   │   └── config.go      # Configuration loading/saving
+│   └── tools/
+│       ├── tools.go
+│       └── executor.go
+├── go.mod
+└── ...
+```
+
+### Implementation Checklist
+
+- [ ] 7.1 Add `github.com/BurntSushi/toml` dependency
+- [ ] 7.2 Create `internal/config/config.go` with Config struct and defaults
+- [ ] 7.3 Implement `Load()` function with XDG path resolution
+- [ ] 7.4 Implement `Save()` function
+- [ ] 7.5 Integrate config loading in `main.go` initialization
+- [ ] 7.6 Save config on each toggle (Ctrl+T, Ctrl+G, Ctrl+H)
+- [ ] 7.7 Test: verify config persists across restarts
+- [ ] 7.8 Update README.md with configuration documentation
+
+---
+
 ## Implementation Order
 
 ### Phase 1: Foundation [DONE]
@@ -690,14 +902,23 @@ These steps cannot be automated by Claude Code:
 20. ~~Update system prompt for coding agent behavior~~
 21. ~~Add Gemini 3 preview models~~
 
-### Phase 6: Polish (Future)
-22. Add command palette (`:` prefix for commands)
-23. Persist settings to config file
-24. Add help screen (`?` key)
-25. Error recovery and retry logic
-26. Bash/shell command execution tool
-27. Git integration tools (status, diff, commit)
-28. GitHub Actions for automated releases
+### Phase 6: Configuration System [IN PROGRESS]
+22. [ ] Add `github.com/BurntSushi/toml` dependency
+23. [ ] Create `internal/config/config.go` with Config struct and defaults
+24. [ ] Implement `Load()` function with XDG path resolution
+25. [ ] Implement `Save()` function
+26. [ ] Integrate config loading in `main.go` initialization
+27. [ ] Save config on each toggle (Ctrl+T, Ctrl+G, Ctrl+H)
+28. [ ] Test: verify config persists across restarts
+29. [ ] Update README.md with configuration documentation
+
+### Phase 7: Polish (Future)
+30. Add command palette (`:` prefix for commands)
+31. Add help screen (`?` key)
+32. Error recovery and retry logic
+33. Bash/shell command execution tool
+34. Git integration tools (status, diff, commit)
+35. GitHub Actions for automated releases
 
 ---
 
@@ -714,20 +935,24 @@ require (
 
 ## Configuration File
 
-Future: Add `~/.config/gemini-tui/config.yaml`:
+Configuration uses XDG Base Directory spec with TOML format.
 
-```yaml
-model: gemini-2.5-flash
-thinking:
-  enabled: false
-  budget: -1  # dynamic
-tools:
-  enabled: true
-  max_file_size: 102400
-  allowed_paths:
-    - "."
-theme: dark
+**Location**: `$XDG_CONFIG_HOME/gemini-tui/config.toml` (defaults to `~/.config/gemini-tui/config.toml`)
+
+```toml
+# Gemini TUI Configuration
+
+# Model to use
+model = "gemini-2.0-flash"
+
+[thinking]
+# Enable thinking mode for complex reasoning
+enabled = false
+# Show thinking process in UI
+show = true
 ```
+
+See **Feature 7: Configuration System** for implementation details.
 
 ---
 
