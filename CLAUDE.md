@@ -6,6 +6,16 @@ This file provides guidance for Claude Code when working with this project.
 
 - [README.md](./README.md) - User-facing documentation, installation, and usage
 - [PLAN.md](./PLAN.md) - Implementation history and future roadmap
+- [Makefile](./Makefile) - **Always check this first** for available commands
+
+## Makefile First
+
+**IMPORTANT**: Always read the Makefile before running build, test, release, or other project commands. Use existing Makefile targets as the first resort:
+
+1. Run `make help` or read the Makefile to see available targets
+2. Use existing targets (e.g., `make build`, `make release V=v1.0.0`) rather than raw commands
+3. Only use custom commands when the Makefile doesn't provide the needed functionality
+4. If a new reusable command is needed, add it to the Makefile rather than running ad-hoc commands
 
 ## Project Overview
 
