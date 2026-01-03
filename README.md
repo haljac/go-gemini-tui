@@ -1,52 +1,59 @@
 # Gemini TUI
 
-A terminal user interface for interacting with Google's Gemini AI. Built with Go using the Bubbletea framework.
+A terminal-based coding agent powered by Google's Gemini AI. Built with Go using the Bubbletea framework.
 
-## Features
-
-- **Conversational AI** - Chat with Gemini directly from your terminal
-- **Streaming Responses** - See responses as they're generated in real-time
-- **File System Tools** - Gemini can read files, list directories, and search for files in your project
-- **Thinking Mode** - Enable extended reasoning for complex tasks
-- **Multiple Models** - Switch between gemini-2.0-flash, gemini-2.5-flash, and gemini-2.5-pro
-- **Markdown Rendering** - AI responses are rendered with syntax highlighting and formatting
+Gemini TUI can read, write, and edit files in your project, making it a powerful assistant for writing code, debugging, refactoring, and understanding codebases.
 
 ## Installation
 
-### Prerequisites
-
-- Go 1.21 or later
-- A Google API key from [Google AI Studio](https://aistudio.google.com/apikey)
-
-### Build from source
+### Quick Install (Recommended)
 
 ```bash
-git clone https://github.com/haljac/gemini-tui.git
-cd gemini-tui
+curl -fsSL https://raw.githubusercontent.com/haljac/go-gemini-tui/master/install.sh | bash
+```
+
+This installs the latest release to `~/.local/bin`. You can customize the install location:
+
+```bash
+INSTALL_DIR=/usr/local/bin curl -fsSL https://raw.githubusercontent.com/haljac/go-gemini-tui/master/install.sh | bash
+```
+
+### Build from Source
+
+Prerequisites: Go 1.21 or later
+
+```bash
+git clone https://github.com/haljac/go-gemini-tui.git
+cd go-gemini-tui
 go build -o gemini-tui .
 ```
 
-## Usage
+## Setup
 
-1. Set your API key:
+1. Get an API key from [Google AI Studio](https://aistudio.google.com/apikey)
+
+2. Set your API key:
 
 ```bash
 export GOOGLE_API_KEY="your-api-key-here"
 ```
 
-2. Run the application:
+3. Run in your project directory:
 
 ```bash
-./gemini-tui
+cd /path/to/your/project
+gemini-tui
 ```
 
-Or run directly with Go:
+## Features
 
-```bash
-go run .
-```
+- **Coding Agent** - Gemini can read, write, and edit files in your project
+- **Streaming Responses** - See responses as they're generated in real-time
+- **Thinking Mode** - Enable extended reasoning for complex tasks
+- **Multiple Models** - Switch between Gemini 2.0, 2.5, and 3.0 models
+- **Markdown Rendering** - Responses rendered with syntax highlighting
 
-### Keyboard Shortcuts
+## Keyboard Shortcuts
 
 | Key | Action |
 |-----|--------|
@@ -58,20 +65,31 @@ go run .
 
 ## File System Tools
 
-Gemini can interact with your local filesystem through built-in tools:
+Gemini has full access to read and write files within your project directory:
 
-- **read_file** - Read the contents of text files (up to 100KB)
-- **list_directory** - List files and directories at a path
+### Reading
+- **read_file** - Read file contents (up to 100KB)
+- **list_directory** - List files and directories
 - **glob_search** - Find files matching patterns (e.g., `**/*.go`)
 
-Example prompts:
-- "What files are in this project?"
-- "Read the main.go file and explain what it does"
-- "Find all Go files in this directory"
+### Writing
+- **write_file** - Create new files or overwrite existing files
+- **edit_file** - Make surgical edits by replacing specific strings
+- **create_directory** - Create directories
+
+### Example Prompts
+
+```
+"Create a new Go file that implements a binary search function"
+"Read main.go and add error handling to the HTTP handler"
+"Find all TypeScript files and list their exports"
+"Refactor this function to use async/await"
+"Add unit tests for the Calculator class"
+```
 
 ### Security
 
-File system access is restricted to the current working directory and its subdirectories. Binary files are automatically detected and skipped.
+All file operations are restricted to the current working directory and its subdirectories. The agent cannot access files outside your project.
 
 ## Models
 
@@ -83,18 +101,18 @@ File system access is restricted to the current working directory and its subdir
 | `gemini-3-flash-preview` | Latest multimodal model with strong reasoning |
 | `gemini-3-pro-preview` | Most capable, optimized for complex agentic workflows |
 
-Use `Ctrl+G` to cycle between models during a session.
+Use `Ctrl+G` to cycle between models. For complex coding tasks, try `gemini-2.5-pro` or `gemini-3-pro-preview` with thinking mode enabled (`Ctrl+T`).
 
 > **Note**: Gemini 3 models are currently in preview. The `gemini-3-pro-preview` model may not have a free tier.
 
 ## Thinking Mode
 
-Enable thinking mode with `Ctrl+T` to see Gemini's reasoning process before its final response. This is useful for:
+Enable thinking mode with `Ctrl+T` to see Gemini's reasoning process. This is especially useful for:
 
-- Complex coding problems
-- Multi-step analysis
-- Debugging assistance
-- Mathematical reasoning
+- Complex refactoring
+- Debugging tricky issues
+- Architectural decisions
+- Multi-file changes
 
 Toggle visibility of thinking content with `Ctrl+H`.
 
@@ -107,21 +125,19 @@ Toggle visibility of thinking content with `Ctrl+H`.
 │   └── tools/
 │       ├── tools.go        # Tool declarations for Gemini
 │       └── executor.go     # Tool execution with security
+├── Makefile                # Build and release targets
+├── install.sh              # Installation script
 ├── go.mod
 ├── go.sum
+├── README.md               # This file
 ├── CLAUDE.md               # Development guidelines
 └── PLAN.md                 # Feature implementation details
 ```
 
-## Dependencies
-
-- [Bubbletea](https://github.com/charmbracelet/bubbletea) - TUI framework
-- [Bubbles](https://github.com/charmbracelet/bubbles) - TUI components
-- [Lipgloss](https://github.com/charmbracelet/lipgloss) - Styling
-- [Glamour](https://github.com/charmbracelet/glamour) - Markdown rendering
-- [Google GenAI SDK](https://github.com/googleapis/go-genai) - Gemini API client
-- [doublestar](https://github.com/bmatcuk/doublestar) - Glob pattern matching
-
 ## Contributing
 
 Contributions are welcome! Please feel free to submit issues and pull requests.
+
+## License
+
+MIT

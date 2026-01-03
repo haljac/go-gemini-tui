@@ -4,129 +4,116 @@ This file provides guidance for Claude Code when working with this project.
 
 ## Key Files to Read
 
-- [README.md](./README.md) - User-facing documentation, features, and usage instructions
-- [PLAN.md](./PLAN.md) - Detailed implementation specifications and architecture decisions
+- [README.md](./README.md) - User-facing documentation, installation, and usage
+- [PLAN.md](./PLAN.md) - Implementation history and future roadmap
 
 ## Project Overview
 
-A terminal user interface (TUI) for interacting with Google's Gemini AI model. Built with Go using the Bubbletea framework for the TUI and Google's official genai SDK.
+**Gemini TUI** is a terminal-based coding agent powered by Google's Gemini AI. It allows users to interact with Gemini in a terminal interface where the AI can read, write, and edit files in the user's project directory.
+
+**Primary use case**: A coding assistant that can help users write code, debug issues, refactor, and understand codebases—similar to Claude Code but using Gemini models.
 
 ## Tech Stack
 
 - **Language**: Go 1.21+
-- **TUI Framework**: [Bubbletea](https://github.com/charmbracelet/bubbletea) - follows the Elm architecture (Model, Update, View)
+- **TUI Framework**: [Bubbletea](https://github.com/charmbracelet/bubbletea) - Elm architecture (Model, Update, View)
 - **UI Components**: [Bubbles](https://github.com/charmbracelet/bubbles) - textarea, viewport
 - **Styling**: [Lipgloss](https://github.com/charmbracelet/lipgloss)
-- **Markdown Rendering**: [Glamour](https://github.com/charmbracelet/glamour) - styled markdown for terminal
-- **AI SDK**: [Google GenAI](https://github.com/googleapis/go-genai) - unified SDK for Gemini
-- **Glob Matching**: [doublestar](https://github.com/bmatcuk/doublestar) - for `**` glob patterns
+- **Markdown**: [Glamour](https://github.com/charmbracelet/glamour) - terminal markdown rendering
+- **AI SDK**: [Google GenAI](https://github.com/googleapis/go-genai) - Gemini API client
+- **Glob**: [doublestar](https://github.com/bmatcuk/doublestar) - `**` glob patterns
 
 ## Build Commands
 
 ```bash
-# Build the application
-go build -o gemini-tui .
+# Build for current platform
+make build
+
+# Build for all platforms (linux/darwin × amd64/arm64)
+make build-all
+
+# Create a new release
+make release V=v1.0.0
 
 # Run directly
 go run .
 
 # Run tests
 go test ./...
-
-# Format code
-go fmt ./...
-
-# Lint (if golangci-lint installed)
-golangci-lint run
 ```
 
 ## Environment Variables
 
-- `GOOGLE_API_KEY` - Required. Your Gemini API key from https://aistudio.google.com/apikey
+- `GOOGLE_API_KEY` - Required. Gemini API key from https://aistudio.google.com/apikey
 
 ## Project Structure
 
 ```
 .
-├── main.go                    # Application entry point and TUI implementation
+├── main.go                    # Application entry point and TUI logic
 ├── internal/
 │   └── tools/
-│       ├── tools.go           # Tool declarations (read_file, list_directory, glob_search)
+│       ├── tools.go           # Tool declarations for Gemini
 │       └── executor.go        # Tool execution with security constraints
-├── go.mod                     # Go module definition
-├── go.sum                     # Dependency checksums
+├── Makefile                   # Build and release automation
+├── install.sh                 # Curl-pipe installation script
+├── go.mod / go.sum            # Go module files
 ├── README.md                  # User documentation
-├── CLAUDE.md                  # This file (development guidance)
-└── PLAN.md                    # Feature roadmap and implementation plan
+├── CLAUDE.md                  # This file
+└── PLAN.md                    # Implementation roadmap
 ```
 
-## Current Features
+## Available Tools
 
-### File System Tools (Implemented)
-Gemini can use these tools to interact with the filesystem:
-- **read_file**: Read contents of files (100KB limit, text files only)
+The coding agent has these filesystem tools:
+
+### Reading Tools
+- **read_file**: Read file contents (100KB limit, text files only)
 - **list_directory**: List files and directories
 - **glob_search**: Find files matching patterns (e.g., `**/*.go`)
 
-Security: Tools are restricted to the working directory and subdirectories.
+### Writing Tools
+- **write_file**: Create new files or overwrite existing files
+- **edit_file**: Make surgical edits by string replacement (old_string must be unique)
+- **create_directory**: Create directories (including parents)
 
-### Streaming Responses (Implemented)
-Responses stream in real-time as Gemini generates them:
-- Text appears incrementally as it's generated
-- Works seamlessly with tool use (tools execute, then response streams)
-- Visual indicator ("...") while streaming
-- Markdown rendered after streaming completes
+**Security**: All tools are restricted to the working directory and subdirectories.
 
-### Thinking Mode (Implemented)
-Extended reasoning for complex tasks:
-- **Ctrl+T**: Toggle thinking mode on/off
-- **Ctrl+G**: Cycle through models (gemini-2.0-flash, gemini-2.5-flash, gemini-2.5-pro)
-- **Ctrl+H**: Toggle display of thinking content
-- Shows model's reasoning process before final response
-- Status bar displays current model and thinking state
+## Available Models
 
-## Feature Roadmap
+Models are cycled with `Ctrl+G`:
+- `gemini-2.0-flash` - Fast, default
+- `gemini-2.5-flash` - Balanced
+- `gemini-2.5-pro` - Powerful reasoning
+- `gemini-3-flash-preview` - Latest multimodal
+- `gemini-3-pro-preview` - Most capable
 
-All planned features are complete! See [PLAN.md](./PLAN.md) for implementation details.
+## Architecture
 
-1. ~~**File System Tool Use**~~ - Done
-2. ~~**Streaming Responses**~~ - Done
-3. ~~**Thinking Mode**~~ - Done
+The application follows the Elm architecture:
 
-## Architecture Notes
+1. **Model**: Application state (messages, viewport, textarea, client, toolExecutor)
+2. **Update**: Event handling (keypresses, API responses, function calls)
+3. **View**: Renders UI as a string
 
-The application follows the Elm architecture pattern:
-
-1. **Model**: Holds application state (messages, viewport, textarea, client, toolExecutor)
-2. **Update**: Handles events (keypresses, API responses, function calls, window resizes)
-3. **View**: Renders the UI as a string
-
-Key components:
-- `textarea`: User input area
-- `viewport`: Scrollable message history
-- `mdRenderer`: Glamour markdown renderer (auto-adapts to terminal width)
-- `toolExecutor`: Handles file system tool execution with security
-- `thinkingEnabled`: Toggle for extended reasoning mode
-- `currentModel`: Active Gemini model (flash-2.0, flash-2.5, pro-2.5)
-- Async message sending via `tea.Cmd`
-
-### Streaming & Function Calling Flow
-1. User sends message -> `sendMessage()` starts streaming via goroutine
-2. Chunks arrive via channel -> `streamChunkMsg` updates UI incrementally
-3. If function calls detected -> `streamFunctionCallMsg` executes tools
-4. Tool results sent back -> streaming continues via `continueWithFunctionResults()`
-5. When done -> `streamDoneMsg` finalizes message with markdown rendering
+### Key Flow: Streaming with Tool Calls
+1. User sends message → `sendMessage()` starts streaming
+2. Chunks arrive → `streamChunkMsg` updates UI
+3. Function calls detected → `streamFunctionCallMsg` executes tools
+4. Tool results sent → streaming continues via `continueWithFunctionResults()`
+5. Complete → `streamDoneMsg` finalizes with markdown rendering
 
 ## Code Style
 
-- Use standard Go formatting (`go fmt`)
-- Keep functions focused and small
-- Handle errors explicitly
-- Use meaningful variable names
+- Standard Go formatting (`go fmt`)
+- Small, focused functions
+- Explicit error handling
+- Meaningful variable names
 
 ## When Modifying
 
 - Run `go build` to verify compilation
-- Test with a real API key before committing
-- Keep the UI responsive (use `tea.Cmd` for async operations)
-- Consider terminal size constraints when adding UI elements
+- Test changes with a real API key
+- Keep UI responsive (use `tea.Cmd` for async)
+- Consider terminal size constraints
+- Update this file and PLAN.md if adding features

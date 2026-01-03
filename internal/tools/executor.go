@@ -39,6 +39,12 @@ func (e *Executor) Execute(name string, args map[string]any) (map[string]any, er
 		return e.listDirectory(args)
 	case "glob_search":
 		return e.globSearch(args)
+	case "write_file":
+		return e.writeFile(args)
+	case "edit_file":
+		return e.editFile(args)
+	case "create_directory":
+		return e.createDirectory(args)
 	default:
 		return map[string]any{"error": fmt.Sprintf("unknown tool: %s", name)}, nil
 	}
@@ -171,6 +177,143 @@ func (e *Executor) globSearch(args map[string]any) (map[string]any, error) {
 		"matches":   matches,
 		"count":     len(matches),
 		"truncated": truncated,
+	}, nil
+}
+
+// writeFile writes content to a file
+func (e *Executor) writeFile(args map[string]any) (map[string]any, error) {
+	pathArg, ok := args["path"].(string)
+	if !ok || pathArg == "" {
+		return map[string]any{"error": "path is required"}, nil
+	}
+
+	content, ok := args["content"].(string)
+	if !ok {
+		return map[string]any{"error": "content is required"}, nil
+	}
+
+	fullPath := e.resolvePath(pathArg)
+
+	// Security check
+	if !e.isPathAllowed(fullPath) {
+		return map[string]any{"error": "path is outside allowed directory"}, nil
+	}
+
+	// Check if file size would exceed limit
+	if int64(len(content)) > e.maxFileSize*10 { // Allow larger writes than reads
+		return map[string]any{
+			"error": fmt.Sprintf("content too large: %d bytes (max %d bytes)", len(content), e.maxFileSize*10),
+		}, nil
+	}
+
+	// Ensure parent directory exists
+	dir := filepath.Dir(fullPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return map[string]any{"error": fmt.Sprintf("failed to create directory: %s", err.Error())}, nil
+	}
+
+	// Write the file
+	if err := os.WriteFile(fullPath, []byte(content), 0644); err != nil {
+		return map[string]any{"error": err.Error()}, nil
+	}
+
+	return map[string]any{
+		"path":    fullPath,
+		"size":    len(content),
+		"success": true,
+	}, nil
+}
+
+// editFile edits an existing file by replacing a string
+func (e *Executor) editFile(args map[string]any) (map[string]any, error) {
+	pathArg, ok := args["path"].(string)
+	if !ok || pathArg == "" {
+		return map[string]any{"error": "path is required"}, nil
+	}
+
+	oldString, ok := args["old_string"].(string)
+	if !ok {
+		return map[string]any{"error": "old_string is required"}, nil
+	}
+
+	newString, ok := args["new_string"].(string)
+	if !ok {
+		return map[string]any{"error": "new_string is required"}, nil
+	}
+
+	fullPath := e.resolvePath(pathArg)
+
+	// Security check
+	if !e.isPathAllowed(fullPath) {
+		return map[string]any{"error": "path is outside allowed directory"}, nil
+	}
+
+	// Read the file
+	contentBytes, err := os.ReadFile(fullPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return map[string]any{"error": fmt.Sprintf("file not found: %s", pathArg)}, nil
+		}
+		return map[string]any{"error": err.Error()}, nil
+	}
+
+	content := string(contentBytes)
+
+	// Check if old_string exists in the file
+	if !strings.Contains(content, oldString) {
+		return map[string]any{
+			"error": "old_string not found in file",
+			"path":  fullPath,
+		}, nil
+	}
+
+	// Check if old_string is unique
+	count := strings.Count(content, oldString)
+	if count > 1 {
+		return map[string]any{
+			"error":       fmt.Sprintf("old_string found %d times in file, must be unique", count),
+			"path":        fullPath,
+			"occurrences": count,
+		}, nil
+	}
+
+	// Replace the string
+	newContent := strings.Replace(content, oldString, newString, 1)
+
+	// Write the file back
+	if err := os.WriteFile(fullPath, []byte(newContent), 0644); err != nil {
+		return map[string]any{"error": err.Error()}, nil
+	}
+
+	return map[string]any{
+		"path":    fullPath,
+		"size":    len(newContent),
+		"success": true,
+	}, nil
+}
+
+// createDirectory creates a directory and any necessary parents
+func (e *Executor) createDirectory(args map[string]any) (map[string]any, error) {
+	pathArg, ok := args["path"].(string)
+	if !ok || pathArg == "" {
+		return map[string]any{"error": "path is required"}, nil
+	}
+
+	fullPath := e.resolvePath(pathArg)
+
+	// Security check
+	if !e.isPathAllowed(fullPath) {
+		return map[string]any{"error": "path is outside allowed directory"}, nil
+	}
+
+	// Create the directory
+	if err := os.MkdirAll(fullPath, 0755); err != nil {
+		return map[string]any{"error": err.Error()}, nil
+	}
+
+	return map[string]any{
+		"path":    fullPath,
+		"success": true,
 	}, nil
 }
 

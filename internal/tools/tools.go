@@ -49,11 +49,71 @@ var GlobSearchTool = &genai.FunctionDeclaration{
 	},
 }
 
+var WriteFileTool = &genai.FunctionDeclaration{
+	Name:        "write_file",
+	Description: "Write content to a file, creating it if it doesn't exist or overwriting if it does. Use this to create new files or completely replace file contents. For partial edits, use edit_file instead.",
+	Parameters: &genai.Schema{
+		Type: genai.TypeObject,
+		Properties: map[string]*genai.Schema{
+			"path": {
+				Type:        genai.TypeString,
+				Description: "The file path to write to (relative to working directory)",
+			},
+			"content": {
+				Type:        genai.TypeString,
+				Description: "The content to write to the file",
+			},
+		},
+		Required: []string{"path", "content"},
+	},
+}
+
+var EditFileTool = &genai.FunctionDeclaration{
+	Name:        "edit_file",
+	Description: "Edit an existing file by replacing a specific string with new content. The old_string must match exactly (including whitespace and indentation). Use this for surgical edits to existing files. For creating new files or full rewrites, use write_file.",
+	Parameters: &genai.Schema{
+		Type: genai.TypeObject,
+		Properties: map[string]*genai.Schema{
+			"path": {
+				Type:        genai.TypeString,
+				Description: "The file path to edit (relative to working directory)",
+			},
+			"old_string": {
+				Type:        genai.TypeString,
+				Description: "The exact string to find and replace (must match exactly, including whitespace)",
+			},
+			"new_string": {
+				Type:        genai.TypeString,
+				Description: "The string to replace old_string with",
+			},
+		},
+		Required: []string{"path", "old_string", "new_string"},
+	},
+}
+
+var CreateDirectoryTool = &genai.FunctionDeclaration{
+	Name:        "create_directory",
+	Description: "Create a new directory (and any necessary parent directories). Use this before writing files to new directories.",
+	Parameters: &genai.Schema{
+		Type: genai.TypeObject,
+		Properties: map[string]*genai.Schema{
+			"path": {
+				Type:        genai.TypeString,
+				Description: "The directory path to create (relative to working directory)",
+			},
+		},
+		Required: []string{"path"},
+	},
+}
+
 // AllTools returns all available tool declarations
 func AllTools() []*genai.FunctionDeclaration {
 	return []*genai.FunctionDeclaration{
 		ReadFileTool,
 		ListDirectoryTool,
 		GlobSearchTool,
+		WriteFileTool,
+		EditFileTool,
+		CreateDirectoryTool,
 	}
 }

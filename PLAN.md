@@ -1,15 +1,21 @@
 # Feature Implementation Plan
 
-This document outlines the implementation plan for Gemini TUI features and distribution.
+This document outlines the implementation plan for Gemini TUI—a terminal-based coding agent powered by Google's Gemini AI.
+
+## Project Vision
+
+Gemini TUI is a coding assistant that runs in your terminal. It can read, write, and edit files in your project, helping you write code, debug issues, refactor, and understand codebases. Think of it as a Gemini-powered alternative to Claude Code.
 
 ## Feature Overview
 
 | Feature | Priority | Complexity | Status |
 |---------|----------|------------|--------|
-| 1. File System Tool Use | High | Medium | **DONE** |
+| 1. File System Read Tools | High | Medium | **DONE** |
 | 2. Streaming Responses | High | Medium | **DONE** |
 | 3. Thinking Mode | Medium | Low | **DONE** |
 | 4. Distribution & Installation | High | Medium | **DONE** |
+| 5. File System Write Tools | High | Medium | **DONE** |
+| 6. Gemini 3 Models | Medium | Low | **DONE** |
 
 ---
 
@@ -677,12 +683,21 @@ These steps cannot be automated by Claude Code:
 15. ~~Create initial GitHub release with `gh` CLI~~
 16. ~~Test installation via curl pipe~~
 
-### Phase 5: Polish (Future)
-17. Add command palette (`:` prefix for commands)
-18. Persist settings to config file
-19. Add help screen (`?` key)
-20. Error recovery and retry logic
-21. GitHub Actions for automated releases
+### Phase 5: Coding Agent [DONE]
+17. ~~Add `write_file` tool for creating/overwriting files~~
+18. ~~Add `edit_file` tool for surgical string replacement~~
+19. ~~Add `create_directory` tool~~
+20. ~~Update system prompt for coding agent behavior~~
+21. ~~Add Gemini 3 preview models~~
+
+### Phase 6: Polish (Future)
+22. Add command palette (`:` prefix for commands)
+23. Persist settings to config file
+24. Add help screen (`?` key)
+25. Error recovery and retry logic
+26. Bash/shell command execution tool
+27. Git integration tools (status, diff, commit)
+28. GitHub Actions for automated releases
 
 ---
 
