@@ -13,7 +13,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"google.golang.org/genai"
 
-	"github.com/jack/some-tui/internal/tools"
+	"github.com/haljac/gemini-tui/internal/tools"
 )
 
 var (
@@ -60,6 +60,20 @@ type model struct {
 	activeTools  []string // Tools currently being executed
 	width        int
 	height       int
+	// Streaming state
+	streaming       bool
+	streamBuffer    string
+	streamToolsUsed []string
+	streamChan      chan streamEvent
+}
+
+// Streaming event types
+type streamEvent struct {
+	chunk         string
+	done          bool
+	err           error
+	functionCalls []*genai.FunctionCall
+	conversation  []*genai.Content
 }
 
 type responseMsg struct {
@@ -69,6 +83,25 @@ type responseMsg struct {
 }
 
 type functionCallMsg struct {
+	calls        []*genai.FunctionCall
+	conversation []*genai.Content
+}
+
+// Streaming message types
+type streamChunkMsg struct {
+	chunk string
+}
+
+type streamDoneMsg struct {
+	fullContent string
+	toolsUsed   []string
+}
+
+type streamErrorMsg struct {
+	err error
+}
+
+type streamFunctionCallMsg struct {
 	calls        []*genai.FunctionCall
 	conversation []*genai.Content
 }
@@ -103,65 +136,133 @@ func (m model) Init() tea.Cmd {
 	return textarea.Blink
 }
 
-func (m model) sendMessage(userMsg string) tea.Cmd {
-	return func() tea.Msg {
-		ctx := context.Background()
+func (m *model) sendMessage(userMsg string) tea.Cmd {
+	// Build conversation with current user message
+	conversation := append(m.conversation, &genai.Content{
+		Role:  "user",
+		Parts: []*genai.Part{{Text: userMsg}},
+	})
 
-		// Build conversation with current user message
-		conversation := append(m.conversation, &genai.Content{
-			Role:  "user",
-			Parts: []*genai.Part{{Text: userMsg}},
-		})
-
-		return m.generateWithTools(ctx, conversation, nil)
-	}
+	return m.startStreaming(conversation, nil)
 }
 
-func (m model) continueWithFunctionResults(conversation []*genai.Content, toolsUsed []string) tea.Cmd {
-	return func() tea.Msg {
-		ctx := context.Background()
-		return m.generateWithTools(ctx, conversation, toolsUsed)
-	}
+func (m *model) continueWithFunctionResults(conversation []*genai.Content, toolsUsed []string) tea.Cmd {
+	return m.startStreaming(conversation, toolsUsed)
 }
 
-func (m model) generateWithTools(ctx context.Context, conversation []*genai.Content, toolsUsed []string) tea.Msg {
-	// Configure with tools
+func (m *model) startStreaming(conversation []*genai.Content, toolsUsed []string) tea.Cmd {
+	// Create channel for streaming events
+	ch := make(chan streamEvent, 10)
+	m.streamChan = ch
+	m.streamToolsUsed = toolsUsed
+
+	// Start streaming in background
+	go m.streamInBackground(conversation, toolsUsed, ch)
+
+	// Return command to wait for first event
+	return m.waitForStreamEvent()
+}
+
+func (m *model) streamInBackground(conversation []*genai.Content, toolsUsed []string, ch chan streamEvent) {
+	defer close(ch)
+
+	ctx := context.Background()
+
+	// Configure with tools and system instruction
 	config := &genai.GenerateContentConfig{
+		SystemInstruction: &genai.Content{
+			Parts: []*genai.Part{{
+				Text: `You are a helpful AI assistant. Answer questions directly using your knowledge.
+
+You have access to tools for reading files and exploring the filesystem. Only use these tools when the user specifically asks about files, code, or project contents. For general questions, knowledge queries, or conversations, respond directly without using tools.
+
+Tools available:
+- read_file: Read file contents (use when user asks to see a file)
+- list_directory: List directory contents (use when user asks what files exist)
+- glob_search: Find files by pattern (use when user wants to find files)`,
+			}},
+		},
 		Tools: []*genai.Tool{{
 			FunctionDeclarations: tools.AllTools(),
 		}},
 	}
 
-	result, err := m.client.Models.GenerateContent(
-		ctx,
-		"gemini-2.0-flash",
-		conversation,
-		config,
-	)
-	if err != nil {
-		return responseMsg{err: err}
-	}
+	var fullText strings.Builder
+	var functionCalls []*genai.FunctionCall
 
-	if len(result.Candidates) == 0 || result.Candidates[0].Content == nil {
-		return responseMsg{err: fmt.Errorf("no response from model")}
-	}
+	// Stream the response
+	for resp, err := range m.client.Models.GenerateContentStream(ctx, "gemini-2.0-flash", conversation, config) {
+		if err != nil {
+			ch <- streamEvent{err: err}
+			return
+		}
 
-	// Check for function calls
-	functionCalls := result.FunctionCalls()
-	if len(functionCalls) > 0 {
-		// Add model's response (with function calls) to conversation
-		newConversation := append(conversation, result.Candidates[0].Content)
-		return functionCallMsg{
-			calls:        functionCalls,
-			conversation: newConversation,
+		// Check for function calls in this chunk
+		if calls := resp.FunctionCalls(); len(calls) > 0 {
+			functionCalls = append(functionCalls, calls...)
+		}
+
+		// Get text from this chunk
+		chunk := resp.Text()
+		if chunk != "" {
+			fullText.WriteString(chunk)
+			ch <- streamEvent{chunk: chunk}
 		}
 	}
 
-	// No function calls - return the text response
-	text := result.Text()
-	return responseMsg{
-		content:   text,
-		toolsUsed: toolsUsed,
+	// If we have function calls, send them
+	if len(functionCalls) > 0 {
+		// Build the model's response content for conversation history
+		var parts []*genai.Part
+		if fullText.Len() > 0 {
+			parts = append(parts, &genai.Part{Text: fullText.String()})
+		}
+		for _, fc := range functionCalls {
+			parts = append(parts, &genai.Part{FunctionCall: fc})
+		}
+		newConversation := append(conversation, &genai.Content{
+			Role:  "model",
+			Parts: parts,
+		})
+		ch <- streamEvent{
+			done:          true,
+			functionCalls: functionCalls,
+			conversation:  newConversation,
+		}
+		return
+	}
+
+	// Done with text response
+	ch <- streamEvent{done: true}
+}
+
+func (m *model) waitForStreamEvent() tea.Cmd {
+	return func() tea.Msg {
+		if m.streamChan == nil {
+			return streamErrorMsg{err: fmt.Errorf("no stream channel")}
+		}
+
+		event, ok := <-m.streamChan
+		if !ok {
+			// Channel closed unexpectedly
+			return streamDoneMsg{fullContent: m.streamBuffer, toolsUsed: m.streamToolsUsed}
+		}
+
+		if event.err != nil {
+			return streamErrorMsg{err: event.err}
+		}
+
+		if event.done {
+			if len(event.functionCalls) > 0 {
+				return streamFunctionCallMsg{
+					calls:        event.functionCalls,
+					conversation: event.conversation,
+				}
+			}
+			return streamDoneMsg{fullContent: m.streamBuffer, toolsUsed: m.streamToolsUsed}
+		}
+
+		return streamChunkMsg{chunk: event.chunk}
 	}
 }
 
@@ -177,7 +278,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyCtrlC, tea.KeyEsc:
 			return m, tea.Quit
 		case tea.KeyEnter:
-			if m.waiting {
+			if m.waiting || m.streaming {
 				return m, nil
 			}
 			userInput := strings.TrimSpace(m.textarea.Value())
@@ -187,14 +288,66 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.messages = append(m.messages, message{role: "user", content: userInput})
 			m.textarea.Reset()
 			m.waiting = true
+			m.streaming = true
+			m.streamBuffer = ""
 			m.activeTools = nil
 			m.viewport.SetContent(m.renderMessages())
 			m.viewport.GotoBottom()
-			return m, m.sendMessage(userInput)
+			cmd := m.sendMessage(userInput)
+			return m, cmd
 		}
 
-	case functionCallMsg:
+	case streamChunkMsg:
+		// Append chunk to buffer and update display
+		m.streamBuffer += msg.chunk
+		m.viewport.SetContent(m.renderMessages())
+		m.viewport.GotoBottom()
+		cmd := m.waitForStreamEvent()
+		return m, cmd
+
+	case streamDoneMsg:
+		// Streaming complete - finalize the message
+		m.waiting = false
+		m.streaming = false
+		m.activeTools = nil
+		content := msg.fullContent
+		if content == "" {
+			content = m.streamBuffer
+		}
+		m.messages = append(m.messages, message{
+			role:      "assistant",
+			content:   content,
+			toolsUsed: msg.toolsUsed,
+		})
+		m.streamBuffer = ""
+		// Update conversation history for next turn
+		m.conversation = append(m.conversation,
+			&genai.Content{
+				Role:  "user",
+				Parts: []*genai.Part{{Text: m.messages[len(m.messages)-2].content}},
+			},
+			&genai.Content{
+				Role:  "model",
+				Parts: []*genai.Part{{Text: content}},
+			},
+		)
+		m.viewport.SetContent(m.renderMessages())
+		m.viewport.GotoBottom()
+		return m, nil
+
+	case streamErrorMsg:
+		m.waiting = false
+		m.streaming = false
+		m.streamBuffer = ""
+		m.err = msg.err
+		m.viewport.SetContent(m.renderMessages())
+		m.viewport.GotoBottom()
+		return m, nil
+
+	case streamFunctionCallMsg:
 		// Execute the function calls
+		m.streaming = false
+		m.streamBuffer = ""
 		var toolNames []string
 		var functionResponses []*genai.Part
 
@@ -206,6 +359,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Update active tools for UI feedback
 		m.activeTools = toolNames
+		m.streamToolsUsed = toolNames
+		m.streaming = true
 		m.viewport.SetContent(m.renderMessages())
 		m.viewport.GotoBottom()
 
@@ -216,34 +371,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		})
 
 		// Continue the conversation with function results
-		return m, m.continueWithFunctionResults(conversation, toolNames)
-
-	case responseMsg:
-		m.waiting = false
-		m.activeTools = nil
-		if msg.err != nil {
-			m.err = msg.err
-		} else {
-			m.messages = append(m.messages, message{
-				role:      "assistant",
-				content:   msg.content,
-				toolsUsed: msg.toolsUsed,
-			})
-			// Update conversation history for next turn
-			m.conversation = append(m.conversation,
-				&genai.Content{
-					Role:  "user",
-					Parts: []*genai.Part{{Text: m.messages[len(m.messages)-2].content}},
-				},
-				&genai.Content{
-					Role:  "model",
-					Parts: []*genai.Part{{Text: msg.content}},
-				},
-			)
-		}
-		m.viewport.SetContent(m.renderMessages())
-		m.viewport.GotoBottom()
-		return m, nil
+		cmd := m.continueWithFunctionResults(conversation, toolNames)
+		return m, cmd
 
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -312,7 +441,20 @@ func (m model) renderMessages() string {
 		}
 	}
 
-	if m.waiting {
+	// Show streaming content
+	if m.streaming && m.streamBuffer != "" {
+		if len(m.streamToolsUsed) > 0 {
+			sb.WriteString(toolStyle.Render("Tools used: "))
+			sb.WriteString(toolStyle.Render(strings.Join(m.streamToolsUsed, ", ")))
+			sb.WriteString("\n")
+		}
+		sb.WriteString(assistantStyle.Render("Gemini:"))
+		sb.WriteString("\n")
+		// Show raw text while streaming (markdown rendering can be janky mid-stream)
+		sb.WriteString(m.streamBuffer)
+		sb.WriteString(infoStyle.Render("..."))
+		sb.WriteString("\n\n")
+	} else if m.waiting {
 		if len(m.activeTools) > 0 {
 			sb.WriteString(toolStyle.Render("Using tools: "))
 			sb.WriteString(toolStyle.Render(strings.Join(m.activeTools, ", ")))

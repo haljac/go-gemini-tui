@@ -66,12 +66,19 @@ Gemini can use these tools to interact with the filesystem:
 
 Security: Tools are restricted to the working directory and subdirectories.
 
+### Streaming Responses (Implemented)
+Responses stream in real-time as Gemini generates them:
+- Text appears incrementally as it's generated
+- Works seamlessly with tool use (tools execute, then response streams)
+- Visual indicator ("...") while streaming
+- Markdown rendered after streaming completes
+
 ## Feature Roadmap
 
 See [PLAN.md](./PLAN.md) for detailed implementation plans. Remaining features:
 
 1. ~~**File System Tool Use**~~ - Done
-2. **Streaming Responses** - Show responses as they're generated for better UX
+2. ~~**Streaming Responses**~~ - Done
 3. **Thinking Mode** - Enable extended reasoning for complex coding/math tasks
 
 ## Architecture Notes
@@ -89,12 +96,12 @@ Key components:
 - `toolExecutor`: Handles file system tool execution with security
 - Async message sending via `tea.Cmd`
 
-### Function Calling Flow
-1. User sends message -> `sendMessage()` called
-2. If Gemini returns function calls -> `functionCallMsg` sent to Update
-3. Update executes tools via `toolExecutor.Execute()`
-4. Function results sent back to Gemini via `continueWithFunctionResults()`
-5. Loop continues until Gemini returns text response
+### Streaming & Function Calling Flow
+1. User sends message -> `sendMessage()` starts streaming via goroutine
+2. Chunks arrive via channel -> `streamChunkMsg` updates UI incrementally
+3. If function calls detected -> `streamFunctionCallMsg` executes tools
+4. Tool results sent back -> streaming continues via `continueWithFunctionResults()`
+5. When done -> `streamDoneMsg` finalizes message with markdown rendering
 
 ## Code Style
 

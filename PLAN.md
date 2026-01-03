@@ -4,15 +4,15 @@ This document outlines the implementation plan for the three highest-value featu
 
 ## Feature Overview
 
-| Feature | Priority | Complexity | Value |
-|---------|----------|------------|-------|
-| 1. File System Tool Use | High | Medium | Enables code analysis, file reading, project understanding |
-| 2. Streaming Responses | High | Medium | Dramatically improves perceived responsiveness |
-| 3. Thinking Mode | Medium | Low | Better reasoning for complex coding/math tasks |
+| Feature | Priority | Complexity | Status |
+|---------|----------|------------|--------|
+| 1. File System Tool Use | High | Medium | **DONE** |
+| 2. Streaming Responses | High | Medium | **DONE** |
+| 3. Thinking Mode | Medium | Low | Pending |
 
 ---
 
-## Feature 1: File System Tool Use
+## Feature 1: File System Tool Use [COMPLETED]
 
 ### Overview
 

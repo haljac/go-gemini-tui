@@ -1,4 +1,4 @@
-module github.com/jack/some-tui
+module github.com/haljac/gemini-tui
 
 go 1.25.5
 
