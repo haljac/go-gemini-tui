@@ -2,6 +2,8 @@
 
 This file provides guidance for Claude Code when working with this project.
 
+**Important**: Before implementing new features, read [PLAN.md](./PLAN.md) for the detailed feature roadmap and implementation specifications.
+
 ## Project Overview
 
 A terminal user interface (TUI) for interacting with Google's Gemini AI model. Built with Go using the Bubbletea framework for the TUI and Google's official genai SDK.
@@ -12,6 +14,7 @@ A terminal user interface (TUI) for interacting with Google's Gemini AI model. B
 - **TUI Framework**: [Bubbletea](https://github.com/charmbracelet/bubbletea) - follows the Elm architecture (Model, Update, View)
 - **UI Components**: [Bubbles](https://github.com/charmbracelet/bubbles) - textarea, viewport
 - **Styling**: [Lipgloss](https://github.com/charmbracelet/lipgloss)
+- **Markdown Rendering**: [Glamour](https://github.com/charmbracelet/glamour) - styled markdown for terminal
 - **AI SDK**: [Google GenAI](https://github.com/googleapis/go-genai) - unified SDK for Gemini
 
 ## Build Commands
@@ -44,8 +47,17 @@ golangci-lint run
 ├── main.go          # Application entry point and TUI implementation
 ├── go.mod           # Go module definition
 ├── go.sum           # Dependency checksums
-└── CLAUDE.md        # This file
+├── CLAUDE.md        # This file
+└── PLAN.md          # Feature roadmap and implementation plan
 ```
+
+## Feature Roadmap
+
+See [PLAN.md](./PLAN.md) for detailed implementation plans. Planned features:
+
+1. **File System Tool Use** - Enable Gemini to read files, list directories, and search with glob patterns
+2. **Streaming Responses** - Show responses as they're generated for better UX
+3. **Thinking Mode** - Enable extended reasoning for complex coding/math tasks
 
 ## Architecture Notes
 
@@ -58,6 +70,7 @@ The application follows the Elm architecture pattern:
 Key components:
 - `textarea`: User input area
 - `viewport`: Scrollable message history
+- `mdRenderer`: Glamour markdown renderer (auto-adapts to terminal width)
 - Async message sending via `tea.Cmd`
 
 ## Code Style

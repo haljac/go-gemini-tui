@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 	"google.golang.org/genai"
 )
@@ -39,15 +40,16 @@ type message struct {
 }
 
 type model struct {
-	client      *genai.Client
-	viewport    viewport.Model
-	textarea    textarea.Model
-	messages    []message
-	err         error
-	ready       bool
-	waiting     bool
-	width       int
-	height      int
+	client     *genai.Client
+	viewport   viewport.Model
+	textarea   textarea.Model
+	messages   []message
+	mdRenderer *glamour.TermRenderer
+	err        error
+	ready      bool
+	waiting    bool
+	width      int
+	height     int
 }
 
 type responseMsg struct {
@@ -65,10 +67,17 @@ func initialModel(client *genai.Client) model {
 	ta.ShowLineNumbers = false
 	ta.KeyMap.InsertNewline.SetEnabled(false)
 
+	// Create markdown renderer (defer to window size handler for proper width)
+	mdRenderer, _ := glamour.NewTermRenderer(
+		glamour.WithStylePath("dark"),
+		glamour.WithWordWrap(80),
+	)
+
 	return model{
-		client:   client,
-		textarea: ta,
-		messages: []message{},
+		client:     client,
+		textarea:   ta,
+		messages:   []message{},
+		mdRenderer: mdRenderer,
 	}
 }
 
@@ -164,6 +173,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		headerHeight := 2
 		footerHeight := 5
 
+		// Update markdown renderer with new width
+		m.mdRenderer, _ = glamour.NewTermRenderer(
+			glamour.WithStylePath("dark"),
+			glamour.WithWordWrap(msg.Width-4),
+		)
+
 		if !m.ready {
 			m.viewport = viewport.New(msg.Width, msg.Height-headerHeight-footerHeight)
 			m.viewport.SetContent(m.renderMessages())
@@ -171,6 +186,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.viewport.Width = msg.Width
 			m.viewport.Height = msg.Height - headerHeight - footerHeight
+			m.viewport.SetContent(m.renderMessages())
 		}
 
 		m.textarea.SetWidth(msg.Width - 2)
@@ -192,11 +208,23 @@ func (m model) renderMessages() string {
 		if msg.role == "user" {
 			sb.WriteString(userStyle.Render("You: "))
 			sb.WriteString(msg.content)
+			sb.WriteString("\n\n")
 		} else {
-			sb.WriteString(assistantStyle.Render("Gemini: "))
-			sb.WriteString(msg.content)
+			sb.WriteString(assistantStyle.Render("Gemini:"))
+			sb.WriteString("\n")
+			// Render markdown for assistant messages
+			if m.mdRenderer != nil {
+				rendered, err := m.mdRenderer.Render(msg.content)
+				if err == nil {
+					sb.WriteString(strings.TrimSpace(rendered))
+				} else {
+					sb.WriteString(msg.content)
+				}
+			} else {
+				sb.WriteString(msg.content)
+			}
+			sb.WriteString("\n\n")
 		}
-		sb.WriteString("\n\n")
 	}
 
 	if m.waiting {
