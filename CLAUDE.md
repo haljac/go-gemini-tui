@@ -73,13 +73,21 @@ Responses stream in real-time as Gemini generates them:
 - Visual indicator ("...") while streaming
 - Markdown rendered after streaming completes
 
+### Thinking Mode (Implemented)
+Extended reasoning for complex tasks:
+- **Ctrl+T**: Toggle thinking mode on/off
+- **Ctrl+G**: Cycle through models (gemini-2.0-flash, gemini-2.5-flash, gemini-2.5-pro)
+- **Ctrl+H**: Toggle display of thinking content
+- Shows model's reasoning process before final response
+- Status bar displays current model and thinking state
+
 ## Feature Roadmap
 
-See [PLAN.md](./PLAN.md) for detailed implementation plans. Remaining features:
+All planned features are complete! See [PLAN.md](./PLAN.md) for implementation details.
 
 1. ~~**File System Tool Use**~~ - Done
 2. ~~**Streaming Responses**~~ - Done
-3. **Thinking Mode** - Enable extended reasoning for complex coding/math tasks
+3. ~~**Thinking Mode**~~ - Done
 
 ## Architecture Notes
 
@@ -94,6 +102,8 @@ Key components:
 - `viewport`: Scrollable message history
 - `mdRenderer`: Glamour markdown renderer (auto-adapts to terminal width)
 - `toolExecutor`: Handles file system tool execution with security
+- `thinkingEnabled`: Toggle for extended reasoning mode
+- `currentModel`: Active Gemini model (flash-2.0, flash-2.5, pro-2.5)
 - Async message sending via `tea.Cmd`
 
 ### Streaming & Function Calling Flow

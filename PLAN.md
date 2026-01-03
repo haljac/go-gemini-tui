@@ -8,7 +8,7 @@ This document outlines the implementation plan for the three highest-value featu
 |---------|----------|------------|--------|
 | 1. File System Tool Use | High | Medium | **DONE** |
 | 2. Streaming Responses | High | Medium | **DONE** |
-| 3. Thinking Mode | Medium | Low | Pending |
+| 3. Thinking Mode | Medium | Low | **DONE** |
 
 ---
 

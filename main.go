@@ -16,6 +16,15 @@ import (
 	"github.com/haljac/gemini-tui/internal/tools"
 )
 
+// Available models
+const (
+	ModelFlash20 = "gemini-2.0-flash"
+	ModelFlash25 = "gemini-2.5-flash"
+	ModelPro25   = "gemini-2.5-pro"
+)
+
+var availableModels = []string{ModelFlash20, ModelFlash25, ModelPro25}
+
 var (
 	titleStyle = lipgloss.NewStyle().
 			Bold(true).
@@ -38,11 +47,26 @@ var (
 	toolStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("214")).
 			Italic(true)
+
+	thinkingStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("243")).
+			Italic(true)
+
+	statusStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240")).
+			Background(lipgloss.Color("236")).
+			Padding(0, 1)
+
+	statusActiveStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("82")).
+				Background(lipgloss.Color("236")).
+				Padding(0, 1)
 )
 
 type message struct {
 	role      string
 	content   string
+	thinking  string   // Model's thinking process (if thinking mode enabled)
 	toolsUsed []string // Track which tools were used for this response
 }
 
@@ -63,13 +87,19 @@ type model struct {
 	// Streaming state
 	streaming       bool
 	streamBuffer    string
+	streamThinking  string
 	streamToolsUsed []string
 	streamChan      chan streamEvent
+	// Thinking mode
+	thinkingEnabled bool
+	currentModel    string
+	showThinking    bool // Toggle to show/hide thinking in UI
 }
 
 // Streaming event types
 type streamEvent struct {
 	chunk         string
+	thinking      string
 	done          bool
 	err           error
 	functionCalls []*genai.FunctionCall
@@ -94,6 +124,7 @@ type streamChunkMsg struct {
 
 type streamDoneMsg struct {
 	fullContent string
+	thinking    string
 	toolsUsed   []string
 }
 
@@ -123,17 +154,29 @@ func initialModel(client *genai.Client, executor *tools.Executor) model {
 	)
 
 	return model{
-		client:       client,
-		toolExecutor: executor,
-		textarea:     ta,
-		messages:     []message{},
-		conversation: []*genai.Content{},
-		mdRenderer:   mdRenderer,
+		client:          client,
+		toolExecutor:    executor,
+		textarea:        ta,
+		messages:        []message{},
+		conversation:    []*genai.Content{},
+		mdRenderer:      mdRenderer,
+		currentModel:    ModelFlash20,
+		thinkingEnabled: false,
+		showThinking:    true,
 	}
 }
 
 func (m model) Init() tea.Cmd {
 	return textarea.Blink
+}
+
+func (m *model) nextModel() string {
+	for i, model := range availableModels {
+		if model == m.currentModel {
+			return availableModels[(i+1)%len(availableModels)]
+		}
+	}
+	return availableModels[0]
 }
 
 func (m *model) sendMessage(userMsg string) tea.Cmd {
@@ -187,11 +230,19 @@ Tools available:
 		}},
 	}
 
+	// Add thinking config if enabled
+	if m.thinkingEnabled {
+		config.ThinkingConfig = &genai.ThinkingConfig{
+			IncludeThoughts: true,
+		}
+	}
+
 	var fullText strings.Builder
+	var thinkingText strings.Builder
 	var functionCalls []*genai.FunctionCall
 
 	// Stream the response
-	for resp, err := range m.client.Models.GenerateContentStream(ctx, "gemini-2.0-flash", conversation, config) {
+	for resp, err := range m.client.Models.GenerateContentStream(ctx, m.currentModel, conversation, config) {
 		if err != nil {
 			ch <- streamEvent{err: err}
 			return
@@ -202,11 +253,20 @@ Tools available:
 			functionCalls = append(functionCalls, calls...)
 		}
 
-		// Get text from this chunk
-		chunk := resp.Text()
-		if chunk != "" {
-			fullText.WriteString(chunk)
-			ch <- streamEvent{chunk: chunk}
+		// Extract thinking and text content from response
+		if len(resp.Candidates) > 0 && resp.Candidates[0].Content != nil {
+			for _, part := range resp.Candidates[0].Content.Parts {
+				if part.Thought {
+					// This is thinking content
+					if part.Text != "" {
+						thinkingText.WriteString(part.Text)
+					}
+				} else if part.Text != "" {
+					// Regular text content
+					fullText.WriteString(part.Text)
+					ch <- streamEvent{chunk: part.Text}
+				}
+			}
 		}
 	}
 
@@ -233,7 +293,7 @@ Tools available:
 	}
 
 	// Done with text response
-	ch <- streamEvent{done: true}
+	ch <- streamEvent{done: true, thinking: thinkingText.String()}
 }
 
 func (m *model) waitForStreamEvent() tea.Cmd {
@@ -259,7 +319,11 @@ func (m *model) waitForStreamEvent() tea.Cmd {
 					conversation: event.conversation,
 				}
 			}
-			return streamDoneMsg{fullContent: m.streamBuffer, toolsUsed: m.streamToolsUsed}
+			return streamDoneMsg{
+				fullContent: m.streamBuffer,
+				thinking:    event.thinking,
+				toolsUsed:   m.streamToolsUsed,
+			}
 		}
 
 		return streamChunkMsg{chunk: event.chunk}
@@ -290,11 +354,30 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.waiting = true
 			m.streaming = true
 			m.streamBuffer = ""
+			m.streamThinking = ""
 			m.activeTools = nil
 			m.viewport.SetContent(m.renderMessages())
 			m.viewport.GotoBottom()
 			cmd := m.sendMessage(userInput)
 			return m, cmd
+		}
+		// Handle other key combinations
+		switch msg.String() {
+		case "ctrl+t":
+			// Toggle thinking mode
+			m.thinkingEnabled = !m.thinkingEnabled
+			m.viewport.SetContent(m.renderMessages())
+			return m, nil
+		case "ctrl+g":
+			// Cycle through models
+			m.currentModel = m.nextModel()
+			m.viewport.SetContent(m.renderMessages())
+			return m, nil
+		case "ctrl+h":
+			// Toggle showing thinking in UI
+			m.showThinking = !m.showThinking
+			m.viewport.SetContent(m.renderMessages())
+			return m, nil
 		}
 
 	case streamChunkMsg:
@@ -317,9 +400,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.messages = append(m.messages, message{
 			role:      "assistant",
 			content:   content,
+			thinking:  msg.thinking,
 			toolsUsed: msg.toolsUsed,
 		})
 		m.streamBuffer = ""
+		m.streamThinking = ""
 		// Update conversation history for next turn
 		m.conversation = append(m.conversation,
 			&genai.Content{
@@ -418,6 +503,13 @@ func (m model) renderMessages() string {
 			sb.WriteString(msg.content)
 			sb.WriteString("\n\n")
 		} else {
+			// Show thinking if present and enabled
+			if msg.thinking != "" && m.showThinking {
+				sb.WriteString(thinkingStyle.Render("Thinking:"))
+				sb.WriteString("\n")
+				sb.WriteString(thinkingStyle.Render(msg.thinking))
+				sb.WriteString("\n\n")
+			}
 			// Show tools used if any
 			if len(msg.toolsUsed) > 0 {
 				sb.WriteString(toolStyle.Render("Tools used: "))
@@ -475,9 +567,17 @@ func (m model) View() string {
 		return "Initializing..."
 	}
 
-	header := titleStyle.Render("Gemini TUI")
+	// Build status bar
+	modelStatus := statusStyle.Render(m.currentModel)
+	thinkingStatus := statusStyle.Render("Thinking: OFF")
+	if m.thinkingEnabled {
+		thinkingStatus = statusActiveStyle.Render("Thinking: ON")
+	}
+	statusBar := fmt.Sprintf("%s %s", modelStatus, thinkingStatus)
+
+	header := titleStyle.Render("Gemini TUI") + "  " + statusBar
 	footer := m.textarea.View()
-	help := infoStyle.Render("Enter: send | Esc/Ctrl+C: quit")
+	help := infoStyle.Render("Enter: send | Ctrl+T: thinking | Ctrl+G: model | Ctrl+H: hide thinking | Esc: quit")
 
 	return fmt.Sprintf("%s\n%s\n%s\n%s", header, m.viewport.View(), footer, help)
 }
