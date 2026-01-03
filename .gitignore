@@ -1,5 +1,6 @@
 # Binary
 gemini-tui
+dist/
 
 # Environment
 .env

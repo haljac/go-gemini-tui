@@ -16,6 +16,9 @@ import (
 	"github.com/haljac/gemini-tui/internal/tools"
 )
 
+// version is set via ldflags at build time
+var version = "dev"
+
 // Available models
 const (
 	ModelFlash20 = "gemini-2.0-flash"
@@ -583,6 +586,36 @@ func (m model) View() string {
 }
 
 func main() {
+	// Handle --version flag
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "--version", "-v", "version":
+			fmt.Printf("gemini-tui %s\n", version)
+			os.Exit(0)
+		case "--help", "-h", "help":
+			fmt.Println("gemini-tui - A terminal UI for Google Gemini")
+			fmt.Printf("Version: %s\n\n", version)
+			fmt.Println("Usage: gemini-tui [options]")
+			fmt.Println()
+			fmt.Println("Options:")
+			fmt.Println("  --version, -v    Show version")
+			fmt.Println("  --help, -h       Show this help")
+			fmt.Println()
+			fmt.Println("Environment:")
+			fmt.Println("  GOOGLE_API_KEY   Required. Your Gemini API key")
+			fmt.Println()
+			fmt.Println("Keyboard shortcuts:")
+			fmt.Println("  Enter      Send message")
+			fmt.Println("  Ctrl+T     Toggle thinking mode")
+			fmt.Println("  Ctrl+G     Cycle models")
+			fmt.Println("  Ctrl+H     Toggle thinking display")
+			fmt.Println("  Esc        Quit")
+			fmt.Println()
+			fmt.Println("Get an API key at: https://aistudio.google.com/apikey")
+			os.Exit(0)
+		}
+	}
+
 	apiKey := os.Getenv("GOOGLE_API_KEY")
 	if apiKey == "" {
 		fmt.Println("Error: GOOGLE_API_KEY environment variable is not set")

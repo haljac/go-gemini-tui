@@ -2,7 +2,10 @@
 
 This file provides guidance for Claude Code when working with this project.
 
-**Important**: Before implementing new features, read [PLAN.md](./PLAN.md) for the detailed feature roadmap and implementation specifications.
+## Key Files to Read
+
+- [README.md](./README.md) - User-facing documentation, features, and usage instructions
+- [PLAN.md](./PLAN.md) - Detailed implementation specifications and architecture decisions
 
 ## Project Overview
 
@@ -52,7 +55,8 @@ golangci-lint run
 │       └── executor.go        # Tool execution with security constraints
 ├── go.mod                     # Go module definition
 ├── go.sum                     # Dependency checksums
-├── CLAUDE.md                  # This file
+├── README.md                  # User documentation
+├── CLAUDE.md                  # This file (development guidance)
 └── PLAN.md                    # Feature roadmap and implementation plan
 ```
 
