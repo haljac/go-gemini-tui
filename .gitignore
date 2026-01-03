@@ -1,0 +1,16 @@
+# Binary
+gemini-tui
+
+# Environment
+.env
+.envrc
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
