@@ -271,6 +271,7 @@ Writing:
 	var fullText strings.Builder
 	var thinkingText strings.Builder
 	var functionCalls []*genai.FunctionCall
+	var functionCallParts []*genai.Part // Preserve original parts with ThoughtSignature
 
 	// Stream the response
 	for resp, err := range m.client.Models.GenerateContentStream(ctx, m.currentModel, conversation, config) {
@@ -296,6 +297,9 @@ Writing:
 					// Regular text content
 					fullText.WriteString(part.Text)
 					ch <- streamEvent{chunk: part.Text}
+				} else if part.FunctionCall != nil {
+					// Preserve original function call parts (includes ThoughtSignature)
+					functionCallParts = append(functionCallParts, part)
 				}
 			}
 		}
@@ -304,13 +308,13 @@ Writing:
 	// If we have function calls, send them
 	if len(functionCalls) > 0 {
 		// Build the model's response content for conversation history
+		// Use original parts to preserve ThoughtSignature
 		var parts []*genai.Part
 		if fullText.Len() > 0 {
 			parts = append(parts, &genai.Part{Text: fullText.String()})
 		}
-		for _, fc := range functionCalls {
-			parts = append(parts, &genai.Part{FunctionCall: fc})
-		}
+		// Use the preserved original parts that include ThoughtSignature
+		parts = append(parts, functionCallParts...)
 		newConversation := append(conversation, &genai.Content{
 			Role:  "model",
 			Parts: parts,
