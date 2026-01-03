@@ -19,14 +19,22 @@ import (
 // version is set via ldflags at build time
 var version = "dev"
 
-// Available models
+// Available models - ordered from fastest/cheapest to most capable
 const (
-	ModelFlash20 = "gemini-2.0-flash"
-	ModelFlash25 = "gemini-2.5-flash"
-	ModelPro25   = "gemini-2.5-pro"
+	ModelFlash20     = "gemini-2.0-flash"
+	ModelFlash25     = "gemini-2.5-flash"
+	ModelPro25       = "gemini-2.5-pro"
+	ModelFlash3      = "gemini-3-flash-preview"
+	ModelPro3        = "gemini-3-pro-preview"
 )
 
-var availableModels = []string{ModelFlash20, ModelFlash25, ModelPro25}
+var availableModels = []string{
+	ModelFlash20,
+	ModelFlash25,
+	ModelPro25,
+	ModelFlash3,
+	ModelPro3,
+}
 
 var (
 	titleStyle = lipgloss.NewStyle().
@@ -603,6 +611,11 @@ func main() {
 			fmt.Println()
 			fmt.Println("Environment:")
 			fmt.Println("  GOOGLE_API_KEY   Required. Your Gemini API key")
+			fmt.Println()
+			fmt.Println("Available models (cycle with Ctrl+G):")
+			for _, m := range availableModels {
+				fmt.Printf("  - %s\n", m)
+			}
 			fmt.Println()
 			fmt.Println("Keyboard shortcuts:")
 			fmt.Println("  Enter      Send message")

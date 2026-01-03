@@ -79,9 +79,13 @@ File system access is restricted to the current working directory and its subdir
 |-------|-------------|
 | `gemini-2.0-flash` | Fast responses, good for most tasks (default) |
 | `gemini-2.5-flash` | Balanced speed and capability |
-| `gemini-2.5-pro` | Most capable, best for complex reasoning |
+| `gemini-2.5-pro` | Powerful reasoning with adaptive thinking |
+| `gemini-3-flash-preview` | Latest multimodal model with strong reasoning |
+| `gemini-3-pro-preview` | Most capable, optimized for complex agentic workflows |
 
 Use `Ctrl+G` to cycle between models during a session.
+
+> **Note**: Gemini 3 models are currently in preview. The `gemini-3-pro-preview` model may not have a free tier.
 
 ## Thinking Mode
 
